@@ -1,4 +1,4 @@
-# CLAUDE.md <!-- version: v1.2 -->
+# CLAUDE.md <!-- version: v1.6 -->
 
 ## Maintenance Rule
 
@@ -38,7 +38,8 @@ The input DOCX files are already clean and properly formatted (produced by `conv
 - **Font:** Times New Roman throughout, black color
 - **Images:** Embedded in paragraphs, center-aligned
 - **Tables:** Simple grid borders, 12pt Times New Roman cell text
-- **No watermarks, no headers/footers, no hyperlinks, no MCQ blocks** — all stripped upstream
+- **No watermarks, no headers/footers, no hyperlinks** — all stripped upstream
+- **MCQ blocks are present** and must be formatted per the MCQ Rules section below
 
 ## Tool Chain
 
@@ -87,6 +88,285 @@ python convert.py
 # Convert specific file(s)
 python convert.py Chapter12.docx
 python convert.py Chapter10.docx Chapter11.docx
+```
+
+## MCQ Rules
+
+### All formats
+- **Strip all original option markers** — remove `(a)`, `(i)`, `1)`, `A.`, etc. from option text
+- **NEVER wrap the option table in `\begin{center}`**
+- The question itself is an `\item` in the enclosing `enumerate` block (see Numbering Rules)
+
+### `.tex` format
+
+Drop the options table immediately below `\item \textbf{<QUESTION>}` using exactly `\\[0.13cm]`:
+
+```latex
+\item \textbf{<QUESTION>}\\[0.13cm]
+\begin{tabular}{@{}p{0.45\textwidth} p{0.45\textwidth}@{}}
+$\square$ A) <OPTION_1> & $\square$ B) <OPTION_2> \\
+$\square$ C) <OPTION_3> & $\square$ D) <OPTION_4>
+\end{tabular}
+```
+
+### `.lyx` format
+
+Use an `Enumerate` layout item for the question (bold via ERT), then embed the tabular as an ERT inset:
+
+```
+\begin_layout Enumerate
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+\backslash
+textbf{<QUESTION>}
+\backslash
+\backslash
+[0.13cm]
+\end_layout
+
+\end_inset
+
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+\backslash
+begin{tabular}{@{}p{0.45
+\backslash
+textwidth} p{0.45
+\backslash
+textwidth}@{}}
+\end_layout
+
+\begin_layout Plain Layout
+$
+\backslash
+square$ A) <OPTION_1> & $
+\backslash
+square$ B) <OPTION_2>
+\backslash
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+$
+\backslash
+square$ C) <OPTION_3> & $
+\backslash
+square$ D) <OPTION_4>
+\end_layout
+
+\begin_layout Plain Layout
+\backslash
+end{tabular}
+\end_layout
+
+\end_inset
+
+\end_layout
+```
+
+### Assertion-Reasoning Lock
+
+Every Assertion-Reasoning pair **must** be followed by these exact fixed options — never alter the wording.
+
+**`.tex` format:**
+
+```latex
+\item \textbf{Assertion (A):} <ASSERTION TEXT>\\[0.06cm]
+\textbf{Reason (R):} <REASON TEXT>\\[0.13cm]
+\begin{tabular}{@{}p{0.45\textwidth} p{0.45\textwidth}@{}}
+$\square$ A) Both Assertion and Reason are correct; Reason is correct explanation. &
+$\square$ B) Both Assertion and Reason are correct; Reason is NOT correct explanation. \\
+$\square$ C) Assertion is correct; Reason is incorrect. &
+$\square$ D) Assertion is incorrect; Reason is correct.
+\end{tabular}
+```
+
+**`.lyx` format** — same ERT inset pattern as MCQ Rules above, with the fixed option strings hard-coded:
+
+```
+\begin_layout Enumerate
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+\backslash
+textbf{Assertion (A):} <ASSERTION TEXT>
+\backslash
+\backslash
+[0.06cm]
+\backslash
+textbf{Reason (R):} <REASON TEXT>
+\backslash
+\backslash
+[0.13cm]
+\end_layout
+
+\end_inset
+
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+\backslash
+begin{tabular}{@{}p{0.45
+\backslash
+textwidth} p{0.45
+\backslash
+textwidth}@{}}
+\end_layout
+
+\begin_layout Plain Layout
+$
+\backslash
+square$ A) Both Assertion and Reason are correct; Reason is correct explanation. &
+$
+\backslash
+square$ B) Both Assertion and Reason are correct; Reason is NOT correct explanation.
+\backslash
+\backslash
+
+\end_layout
+
+\begin_layout Plain Layout
+$
+\backslash
+square$ C) Assertion is correct; Reason is incorrect. &
+$
+\backslash
+square$ D) Assertion is incorrect; Reason is correct.
+\end_layout
+
+\begin_layout Plain Layout
+\backslash
+end{tabular}
+\end_layout
+
+\end_inset
+
+\end_layout
+```
+
+## Numbering Rules
+
+These rules apply as post-processing steps on the pandoc `.tex` output:
+
+- **Strip all original numbering** from the source text — remove prefixes like `Q1`, `2.`, `1.1`, `(a)`, etc. that appear at the start of paragraphs. The enumerate environment provides the numbering.
+- **Under every `\subsection{}`**, open a fresh `\begin{enumerate}` block immediately after the heading.
+- **Before the next `\subsection{}` or `\section{}`**, close the block with `\end{enumerate}`.
+- Each item in the block must be wrapped in `\item`.
+
+**Example:**
+```latex
+\subsection{Forces}
+\begin{enumerate}
+  \item A body at rest remains at rest...
+  \item Newton's second law states...
+\end{enumerate}
+\subsection{Motion}
+\begin{enumerate}
+  \item Velocity is defined as...
+\end{enumerate}
+```
+
+## Subject-Specific Spacing Rules
+
+### IF MATH
+
+Do **not** add rules or large vertical spaces. Output items cleanly:
+
+| Type | `.tex` | `.lyx` |
+|------|--------|--------|
+| Regular question | `\item \textbf{<QUESTION>}` | `Enumerate` layout, bold via `\series bold` |
+| Fill in the blank | `\item \textbf{<TEXT> _________.}` | Same, underscores inline |
+| True/False | `\item \textbf{<STATEMENT>} \hfill ________` | ERT for `\hfill ________` after bold text |
+
+---
+
+### IF SCIENCE
+
+For every question that is **not** an MCQ or fill-in-the-blank, and where **no answer is provided** in the source text, append writing lines after the item.
+
+**Short questions** — 1 rule line:
+
+`.tex`:
+```latex
+\item \textbf{<QUESTION>}
+\par \vspace{0.3cm} \noindent\rule{\linewidth}{0.4pt} \vspace{0.5cm}
+```
+
+`.lyx`:
+```
+\begin_layout Enumerate
+\series bold
+<QUESTION>
+\series default
+
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+\backslash
+par
+\backslash
+vspace{0.3cm}
+\backslash
+noindent
+\backslash
+rule{
+\backslash
+linewidth}{0.4pt}
+\backslash
+vspace{0.5cm}
+\end_layout
+
+\end_inset
+
+\end_layout
+```
+
+**Long questions** — 3 rule lines:
+
+`.tex`:
+```latex
+\item \textbf{<QUESTION>}
+\par \vspace{0.3cm} \noindent\rule{\linewidth}{0.4pt}
+\par \vspace{0.4cm} \noindent\rule{\linewidth}{0.4pt}
+\par \vspace{0.4cm} \noindent\rule{\linewidth}{0.4pt} \vspace{0.5cm}
+```
+
+`.lyx`: same ERT pattern as short, repeated 3 times with matching `\vspace` values.
+
+**Fill in the blank** (same for Math and Science):
+
+`.tex`: `\item \textbf{<TEXT> _________.}`
+`.lyx`: `Enumerate` layout, bold text, underscores inline
+
+**True/False** (same for Math and Science):
+
+`.tex`: `\item \textbf{<STATEMENT>} \hfill ________`
+`.lyx`:
+```
+\begin_layout Enumerate
+\series bold
+<STATEMENT>
+\series default
+
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+\backslash
+hfill ________
+\end_layout
+
+\end_inset
+
+\end_layout
 ```
 
 ## Implementation Notes

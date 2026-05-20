@@ -1,8 +1,11 @@
-# CLAUDE.md
+# CLAUDE.md <!-- version: v1.2 -->
 
 ## Maintenance Rule
 
-**Whenever this file is modified, commit the change to git with a clear, descriptive commit message summarising what was changed and why.**
+**Whenever this file is modified:**
+1. Increment the version number in the `<!-- version: vX.Y -->` tag on line 1 (bump minor: v1.2 → v1.3, v1.4, etc. — only go to v2.0 if explicitly asked)
+2. Commit with a descriptive message
+3. The post-commit hook will auto-push to GitHub
 
 ---
 

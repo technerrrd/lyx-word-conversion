@@ -1,4 +1,4 @@
-# CLAUDE.md <!-- version: v1.7 -->
+# CLAUDE.md <!-- version: v2.0 -->
 
 ## Maintenance Rule
 
@@ -24,6 +24,10 @@ Your sole job is to faithfully convert the content of the input DOCX into LaTeX/
 - Produce any output that is not directly derived from the source DOCX
 
 If something is unclear or missing in the source, flag it — do not invent a replacement.
+
+### Subject Detection
+
+Before beginning conversion, scan the document title, chapter heading, or metadata for subject indicators. If the subject is not immediately obvious, ask the user: **"Is this a Math or Science document?"** and wait for confirmation before applying subject-specific spacing rules.
 
 ### Input Source
 
@@ -89,6 +93,32 @@ python convert.py
 python convert.py Chapter12.docx
 python convert.py Chapter10.docx Chapter11.docx
 ```
+
+---
+
+## Numbering Rules
+
+These rules apply as post-processing steps on the pandoc `.tex` output:
+
+- **Strip all original numbering** from the source text — remove prefixes like `Q1`, `2.`, `1.1`, `(a)`, etc. that appear at the start of paragraphs. The enumerate environment provides the numbering.
+- **Under every `\subsection{}`**, open a fresh `\begin{enumerate}` block immediately after the heading.
+- **Before the next `\subsection{}` or `\section{}`**, close the block with `\end{enumerate}`.
+- Each item in the block must be wrapped in `\item`.
+
+**Example:**
+```latex
+\subsection{Forces}
+\begin{enumerate}
+  \item A body at rest remains at rest...
+  \item Newton's second law states...
+\end{enumerate}
+\subsection{Motion}
+\begin{enumerate}
+  \item Velocity is defined as...
+\end{enumerate}
+```
+
+---
 
 ## MCQ Rules
 
@@ -186,7 +216,7 @@ $\square$ D) Assertion is incorrect; Reason is correct.
 \end{tabular}
 ```
 
-**`.lyx` format** — same ERT inset pattern as MCQ Rules above, with the fixed option strings hard-coded:
+**`.lyx` format:**
 
 ```
 \begin_layout Enumerate
@@ -251,29 +281,13 @@ end{tabular}
 \end_layout
 ```
 
-## Numbering Rules
-
-These rules apply as post-processing steps on the pandoc `.tex` output:
-
-- **Strip all original numbering** from the source text — remove prefixes like `Q1`, `2.`, `1.1`, `(a)`, etc. that appear at the start of paragraphs. The enumerate environment provides the numbering.
-- **Under every `\subsection{}`**, open a fresh `\begin{enumerate}` block immediately after the heading.
-- **Before the next `\subsection{}` or `\section{}`**, close the block with `\end{enumerate}`.
-- Each item in the block must be wrapped in `\item`.
-
-**Example:**
-```latex
-\subsection{Forces}
-\begin{enumerate}
-  \item A body at rest remains at rest...
-  \item Newton's second law states...
-\end{enumerate}
-\subsection{Motion}
-\begin{enumerate}
-  \item Velocity is defined as...
-\end{enumerate}
-```
+---
 
 ## Subject-Specific Spacing Rules
+
+### Short vs Long Question Detection
+
+The source document will explicitly label sections as **"Long Question Answers"** or **"Short Question Answers"** — use that heading to determine which spacing to apply. For **case-based questions** (explicitly stated as such in the question text), treat as Short Question or MCQ as the question itself indicates.
 
 ### IF MATH
 
@@ -282,7 +296,6 @@ Do **not** add rules or large vertical spaces. Output items cleanly:
 | Type | `.tex` | `.lyx` |
 |------|--------|--------|
 | Regular question | `\item \textbf{<QUESTION>}` | `Enumerate` layout, bold via `\series bold` |
-| Fill in the blank | `\item \textbf{<TEXT> _________.}` | Same, underscores inline |
 | True/False | `\item \textbf{<STATEMENT>} \hfill ________` | ERT for `\hfill ________` after bold text |
 
 ---
@@ -341,12 +354,12 @@ vspace{0.5cm}
 
 `.lyx`: same ERT pattern as short, repeated 3 times with matching `\vspace` values.
 
-**Fill in the blank** (same for Math and Science):
+**Fill in the blank** (applies to both Math and Science):
 
 `.tex`: `\item \textbf{<TEXT> _________.}`
 `.lyx`: `Enumerate` layout, bold text, underscores inline
 
-**True/False** (same for Math and Science):
+**True/False** (applies to both Math and Science):
 
 `.tex`: `\item \textbf{<STATEMENT>} \hfill ________`
 `.lyx`:
@@ -369,11 +382,28 @@ hfill ________
 \end_layout
 ```
 
+---
+
 ## Math & Currency Lock
 
 - **Math:** Wrap all inline math, numbers in equations, and standalone equations in `$...$` (inline) or `$$...$$` (display block).
 - **Currency:** Convert all ₹, Rs., and INR occurrences to `\rupee~<amount>` (e.g. ₹250 → `\rupee~250`).
 - **No image transcription:** You are strictly forbidden from transcribing text or formulas found inside an image. **Exception:** tables inside images may be transcribed — see Table Transcription Exception below.
+
+**`.lyx` math format:**
+
+Inline math:
+```
+\begin_inset Formula $<MATH>$
+\end_inset
+```
+
+Display math:
+```
+\begin_inset Formula 
+$$<MATH>$$
+\end_inset
+```
 
 ---
 
@@ -383,13 +413,35 @@ Pandoc extracts images and names them automatically (`image1.png`, `image2.jpeg`
 
 **Sizing:** Read the rendered display size from the DOCX XML (`<wp:extent cx="..." cy="..."/>`, in EMUs where 914400 EMU = 1 inch). Use that to pick the closest width from: `0.25`, `0.4`, `0.5`, `0.6`, `0.75`. Do not use raw pixel dimensions.
 
-**LaTeX block (exact format):**
+**`.tex` figure block (exact format — no `\caption{}`):**
 ```latex
 \begin{figure}[h]
 \centering
 \includegraphics[width=<CHOSEN_SCALE>\textwidth]{<pandoc-assigned-filename>}
 \end{figure}
 ```
+
+**`.lyx` figure block (no caption):**
+```
+\begin_inset Float figure
+placement h
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename media/<pandoc-assigned-filename>
+	width <SCALE>text%
+\end_inset
+
+\end_layout
+
+\end_inset
+```
+
+Scale mapping for `.lyx`: `0.25` → `25text%`, `0.4` → `40text%`, `0.5` → `50text%`, `0.6` → `60text%`, `0.75` → `75text%`
 
 ---
 
@@ -408,13 +460,38 @@ You are allowed to transcribe tables (including those originally presented as im
 
 ## Answer/Solution Exception
 
-If the source text contains `Ans:`, `Answer:`, or `Solution:`, treat it as provided content and transcribe it as:
+If the source text contains `Ans:`, `Answer:`, or `Solution:`, treat it as provided content.
 
+**`.tex`:**
 ```latex
 \par \textit{Ans: <TRANSCRIPT_CONTENT>}
 ```
 
+**`.lyx`:**
+```
+\begin_layout Standard
+
+\shape italic
+Ans: <TRANSCRIPT_CONTENT>
+\shape default
+
+\end_layout
+```
+
 **Critical:** Do **not** append writing lines (`\rule`) or `\vspace` when an answer is already present in the source.
+
+---
+
+## Rule Priority Order
+
+When multiple rules could apply to the same content, use this precedence (highest wins):
+
+1. **Answer/Solution Exception** — answer present in source → no writing lines, ever
+2. **MCQ format** — question has A/B/C/D options → use MCQ grid, no writing lines
+3. **Fill-in-the-blank** — question has blanks → use underscores, no writing lines
+4. **Case-based question** — explicitly stated → follow Short/Long as indicated in the question itself
+5. **Section heading** — "Long Question Answers" / "Short Question Answers" heading in source
+6. **Subject default** — Math: no lines; Science: short = 1 rule line, long = 3 rule lines
 
 ---
 
@@ -433,3 +510,14 @@ If the source text contains `Ans:`, `Answer:`, or `Solution:`, treat it as provi
 3. Open `output/<name>/<name>.tex` — verify headings, body text, image references
 4. Open `output/<name>/<name>.lyx` directly in LyX (File → Open)
 5. Confirm images are in `output/<name>/media/` and referenced correctly
+
+---
+
+## Required LaTeX Packages
+
+Add these to your document preamble in LyX via **Document → Settings → LaTeX Preamble**:
+
+| Package | Required for |
+|---------|-------------|
+| `rupee` | `\rupee` currency symbol |
+| `amssymb` | `$\square$` checkbox in MCQ grids |

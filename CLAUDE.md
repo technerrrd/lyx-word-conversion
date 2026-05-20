@@ -1,8 +1,26 @@
 # CLAUDE.md
 
+## Maintenance Rule
+
+**Whenever this file is modified, commit the change to git with a clear, descriptive commit message summarising what was changed and why.**
+
+---
+
 ## Project Objective
 
 Convert clean, formatted DOCX files into both `.tex` (LaTeX) and `.lyx` (LyX) format for use in LyX.
+
+## Core Principle
+
+**You are a transcription worker, not a content generator.**
+
+Your sole job is to faithfully convert the content of the input DOCX into LaTeX/LyX format. Do not:
+- Add, infer, or rewrite any text
+- Fill in missing content or "improve" phrasing
+- Generate section summaries, captions, or explanations
+- Produce any output that is not directly derived from the source DOCX
+
+If something is unclear or missing in the source, flag it — do not invent a replacement.
 
 ### Input Source
 

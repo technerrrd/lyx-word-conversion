@@ -1,4 +1,4 @@
-# CLAUDE.md <!-- version: v1.6 -->
+# CLAUDE.md <!-- version: v1.7 -->
 
 ## Maintenance Rule
 
@@ -368,6 +368,55 @@ hfill ________
 
 \end_layout
 ```
+
+## Math & Currency Lock
+
+- **Math:** Wrap all inline math, numbers in equations, and standalone equations in `$...$` (inline) or `$$...$$` (display block).
+- **Currency:** Convert all ₹, Rs., and INR occurrences to `\rupee~<amount>` (e.g. ₹250 → `\rupee~250`).
+- **No image transcription:** You are strictly forbidden from transcribing text or formulas found inside an image. **Exception:** tables inside images may be transcribed — see Table Transcription Exception below.
+
+---
+
+## Automated Image Numbering & Smart Scaling
+
+Pandoc extracts images and names them automatically (`image1.png`, `image2.jpeg`, etc.). **Do not rename them.** Map each image to its pandoc-assigned filename in the order they appear in the source.
+
+**Sizing:** Read the rendered display size from the DOCX XML (`<wp:extent cx="..." cy="..."/>`, in EMUs where 914400 EMU = 1 inch). Use that to pick the closest width from: `0.25`, `0.4`, `0.5`, `0.6`, `0.75`. Do not use raw pixel dimensions.
+
+**LaTeX block (exact format):**
+```latex
+\begin{figure}[h]
+\centering
+\includegraphics[width=<CHOSEN_SCALE>\textwidth]{<pandoc-assigned-filename>}
+\end{figure}
+```
+
+---
+
+## No Image Hallucination
+
+- **Never** insert a `\begin{figure}` block for an image that does not exist in the source document.
+- Only reference images that are explicitly present in the user-provided source text.
+
+---
+
+## Table Transcription Exception (Sync Lock)
+
+You are allowed to transcribe tables (including those originally presented as images) into standard LaTeX `tabular` environments.
+
+---
+
+## Answer/Solution Exception
+
+If the source text contains `Ans:`, `Answer:`, or `Solution:`, treat it as provided content and transcribe it as:
+
+```latex
+\par \textit{Ans: <TRANSCRIPT_CONTENT>}
+```
+
+**Critical:** Do **not** append writing lines (`\rule`) or `\vspace` when an answer is already present in the source.
+
+---
 
 ## Implementation Notes
 

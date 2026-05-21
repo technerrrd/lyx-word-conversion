@@ -78,12 +78,18 @@ def segments_text(segments) -> str:
     return ''.join(s[0] for s in segments)
 
 # ---------------------------------------------------------------------------
-# Noise / TOC detection
+# Noise / TOC / chapter detection
 # ---------------------------------------------------------------------------
-TOC_RE = re.compile(r'^\d+\.\s+\S')   # "1. Introduction", "2. What Do We Eat?"
+TOC_RE     = re.compile(r'^\d+\.\s+\S')
+CHAPTER_RE = re.compile(r'^Chapter\s+Notes?\s*:\s*(.+)', re.IGNORECASE)
 
 def is_toc_line(text: str) -> bool:
     return bool(TOC_RE.match(text.strip()))
+
+def chapter_name(text: str):
+    """Return chapter name if text matches 'Chapter Notes: <name>', else None."""
+    m = CHAPTER_RE.match(text.strip())
+    return m.group(1).strip() if m else None
 
 # ---------------------------------------------------------------------------
 # LaTeX helpers
@@ -203,11 +209,12 @@ def parse_docx(docx_path: Path):
 
         level = SIZE_MAP.get(sz)
 
-        # First sz=32 = document title → skip it and enter TOC zone
-        if level == 'section' and not seen_first_heading:
+        # First sz=32 that is NOT a chapter marker = document title → skip + enter TOC zone
+        if level == 'section' and not seen_first_heading and not chapter_name(text):
             seen_first_heading = True
             in_toc = True
             continue  # skip title
+        seen_first_heading = True
 
         # In TOC zone: skip numbered TOC entries
         if in_toc:
@@ -216,8 +223,11 @@ def parse_docx(docx_path: Path):
             else:
                 in_toc = False  # TOC ended
 
-        # Classify
-        if level == 'section':
+        # Classify — chapter pattern wins over font-size level
+        ch = chapter_name(text)
+        if ch:
+            elements.append({'type': 'heading', 'level': 'chapter', 'text': ch})
+        elif level == 'section':
             elements.append({'type': 'heading', 'level': 'section', 'text': text})
         elif level == 'subsection':
             elements.append({'type': 'heading', 'level': 'subsection', 'text': text})
@@ -309,7 +319,7 @@ def group_mcq_blocks(elements):
 # ---------------------------------------------------------------------------
 # LaTeX writer
 # ---------------------------------------------------------------------------
-TEX_PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
+TEX_PREAMBLE = r"""\documentclass[12pt,a4paper]{book}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
@@ -347,7 +357,9 @@ def write_tex(elements, out_path: Path, media_dir: Path):
             close_enum()
             lvl = el['level']
             txt = tex_escape(el['text'])
-            if lvl == 'section':
+            if lvl == 'chapter':
+                lines.append(f'\\chapter{{{txt}}}\n')
+            elif lvl == 'section':
                 lines.append(f'\\section{{{txt}}}\n')
             else:
                 lines.append(f'\\subsection{{{txt}}}\n')
@@ -392,7 +404,7 @@ LYX_HEADER = """\
 \\begin_header
 \\save_transient_properties true
 \\origin unavailable
-\\textclass article
+\\textclass book
 \\use_default_options true
 \\maintain_unincluded_children false
 \\language english
@@ -520,7 +532,9 @@ def write_lyx(elements, out_path: Path, media_dir: Path):
 
         if t == 'heading':
             close_enum()
-            layout = 'Section' if el['level'] == 'section' else 'Subsection'
+            lvl = el['level']
+            layout = {'chapter': 'Chapter', 'section': 'Section',
+                      'subsection': 'Subsection'}.get(lvl, 'Section')
             lines.append(f'\\begin_layout {layout}\n')
             lines.append(f'{el["text"]}\n')
             lines.append('\\end_layout\n\n')

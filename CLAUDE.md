@@ -1,4 +1,4 @@
-# CLAUDE.md <!-- version: v2.3 -->
+# CLAUDE.md <!-- version: v2.4 -->
 
 ## Maintenance Rule
 
@@ -56,10 +56,15 @@ Pandoc is not used — it cannot reconstruct heading hierarchy because all parag
 
 | Font size (`w:sz`) | Point size | LaTeX output | LyX layout |
 |--------------------|------------|--------------|------------|
+| 32 + `Chapter Notes:` prefix | 16pt | `\chapter{}` | `Chapter` |
 | 32 | 16pt | `\section{}` | `Section` |
 | 28 | 14pt | `\subsection{}` | `Subsection` |
 | 24 | 12pt | body paragraph (`\par`) | `Standard` |
 | other | varies | body paragraph (`\par`) | `Standard` |
+
+**Chapter detection:** An sz=32 paragraph whose text matches `Chapter Notes: <name>` (case-insensitive) is treated as a chapter heading. The "Chapter Notes:" prefix is stripped; only `<name>` appears in the output. Document class is `book` (required for `\chapter{}`).
+
+**Single-chapter files** (no `Chapter Notes:` headings) still use `book` class — sections and subsections render correctly without any chapters.
 
 ## Project Structure
 

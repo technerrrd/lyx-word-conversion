@@ -218,9 +218,10 @@ def reconstruct_paragraphs(elements):
             buf = dict(el)
         else:
             prev = buf['text']
-            # Join if previous line doesn't end a sentence and current starts lowercase
+            # Join if previous line doesn't end a sentence and current looks like continuation
+            # (starts lowercase, or starts with '(' indicating a mid-list parenthetical)
             if (not prev.endswith(('.', ':', '?', '!'))
-                    and (text and text[0].islower())):
+                    and (text and (text[0].islower() or text[0] == '('))):
                 buf['text'] = prev + ' ' + text
             else:
                 flush()

@@ -1,9 +1,9 @@
-# CLAUDE.md <!-- version: v2.0 -->
+# CLAUDE.md <!-- version: v2.1 -->
 
 ## Maintenance Rule
 
 **Whenever this file is modified:**
-1. Increment the version number in the `<!-- version: vX.Y -->` tag on line 1 (bump minor: v1.2 → v1.3, v1.4, etc. — only go to v2.0 if explicitly asked)
+1. Increment the version number in the `<!-- version: vX.Y -->` tag on line 1 (bump minor: v2.1 → v2.2, v2.3, etc. — only bump the major version if explicitly asked)
 2. Commit with a descriptive message
 3. The post-commit hook will auto-push to GitHub
 
@@ -64,7 +64,7 @@ pandoc reads DOCX paragraph styles and maps them automatically:
 | Heading 2 | `\subsection` |
 | Heading 3 | `\subsubsection` |
 | Normal | body paragraph |
-| Tables | LaTeX table environment |
+| Tables | `tabular` environment (see Table Transcription Exception) |
 | Bold runs | `\textbf{}` |
 | Images | `\includegraphics{}` (extracted to `media/`) |
 
@@ -98,14 +98,12 @@ python convert.py Chapter10.docx Chapter11.docx
 
 ## Numbering Rules
 
-These rules apply as post-processing steps on the pandoc `.tex` output:
-
 - **Strip all original numbering** from the source text — remove prefixes like `Q1`, `2.`, `1.1`, `(a)`, etc. that appear at the start of paragraphs. The enumerate environment provides the numbering.
-- **Under every `\subsection{}`**, open a fresh `\begin{enumerate}` block immediately after the heading.
-- **Before the next `\subsection{}` or `\section{}`**, close the block with `\end{enumerate}`.
-- Each item in the block must be wrapped in `\item`.
+- **Under every subsection**, open a fresh enumerate block immediately after the heading.
+- **Before the next subsection or section**, close the enumerate block.
+- Each item must be wrapped appropriately for the format.
 
-**Example:**
+**`.tex` example:**
 ```latex
 \subsection{Forces}
 \begin{enumerate}
@@ -116,6 +114,30 @@ These rules apply as post-processing steps on the pandoc `.tex` output:
 \begin{enumerate}
   \item Velocity is defined as...
 \end{enumerate}
+```
+
+**`.lyx` example:** In LyX, consecutive `Enumerate` layout items automatically form a list. The list resets naturally when a new `Subsection` layout begins — no explicit open/close needed.
+
+```
+\begin_layout Subsection
+Forces
+\end_layout
+
+\begin_layout Enumerate
+A body at rest remains at rest...
+\end_layout
+
+\begin_layout Enumerate
+Newton's second law states...
+\end_layout
+
+\begin_layout Subsection
+Motion
+\end_layout
+
+\begin_layout Enumerate
+Velocity is defined as...
+\end_layout
 ```
 
 ---
@@ -352,7 +374,55 @@ vspace{0.5cm}
 \par \vspace{0.4cm} \noindent\rule{\linewidth}{0.4pt} \vspace{0.5cm}
 ```
 
-`.lyx`: same ERT pattern as short, repeated 3 times with matching `\vspace` values.
+`.lyx`:
+```
+\begin_layout Enumerate
+\series bold
+<QUESTION>
+\series default
+
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+\backslash
+par
+\backslash
+vspace{0.3cm}
+\backslash
+noindent
+\backslash
+rule{
+\backslash
+linewidth}{0.4pt}
+\backslash
+par
+\backslash
+vspace{0.4cm}
+\backslash
+noindent
+\backslash
+rule{
+\backslash
+linewidth}{0.4pt}
+\backslash
+par
+\backslash
+vspace{0.4cm}
+\backslash
+noindent
+\backslash
+rule{
+\backslash
+linewidth}{0.4pt}
+\backslash
+vspace{0.5cm}
+\end_layout
+
+\end_inset
+
+\end_layout
+```
 
 **Fill in the blank** (applies to both Math and Science):
 
@@ -386,7 +456,7 @@ hfill ________
 
 ## Math & Currency Lock
 
-- **Math:** Wrap all inline math, numbers in equations, and standalone equations in `$...$` (inline) or `$$...$$` (display block).
+- **Math:** Wrap all mathematical expressions, variables, and equations in `$...$` (inline) or `$$...$$` (display block). Do NOT wrap plain numeric text like years, counts, or page numbers — only wrap values that are part of a mathematical context (e.g. `$x = 3$`, `$F = ma$`).
 - **Currency:** Convert all ₹, Rs., and INR occurrences to `\rupee~<amount>` (e.g. ₹250 → `\rupee~250`).
 - **No image transcription:** You are strictly forbidden from transcribing text or formulas found inside an image. **Exception:** tables inside images may be transcribed — see Table Transcription Exception below.
 
@@ -447,7 +517,7 @@ Scale mapping for `.lyx`: `0.25` → `25text%`, `0.4` → `40text%`, `0.5` → `
 
 ## No Image Hallucination
 
-- **Never** insert a `\begin{figure}` block for an image that does not exist in the source document.
+- **Never** insert a `\begin{figure}` block (`.tex`) or `\begin_inset Float figure` block (`.lyx`) for an image that does not exist in the source document.
 - Only reference images that are explicitly present in the user-provided source text.
 
 ---
@@ -460,7 +530,7 @@ You are allowed to transcribe tables (including those originally presented as im
 
 ## Answer/Solution Exception
 
-If the source text contains `Ans:`, `Answer:`, or `Solution:`, treat it as provided content.
+If the source text contains `Ans:`, `Answer:`, or `Solution:`, treat it as provided content. Place it immediately after the question item, on a new paragraph.
 
 **`.tex`:**
 ```latex
@@ -519,5 +589,6 @@ Add these to your document preamble in LyX via **Document → Settings → LaTeX
 
 | Package | Required for |
 |---------|-------------|
+| `graphicx` | `\includegraphics{}` in figure blocks |
 | `rupee` | `\rupee` currency symbol |
 | `amssymb` | `$\square$` checkbox in MCQ grids |

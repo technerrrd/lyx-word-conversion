@@ -1,4 +1,4 @@
-# CLAUDE.md <!-- version: v2.1 -->
+# CLAUDE.md <!-- version: v2.2 -->
 
 ## Maintenance Rule
 
@@ -37,36 +37,29 @@ Input DOCX files come from the `pdf-conversion` project (`/home/anirudh/pdf-conv
 
 ### Input File Characteristics
 
-The input DOCX files are already clean and properly formatted (produced by `convert_document_v4.py`):
-- **Text:** Accessible via standard paragraph styles — Heading 1, Heading 2, Heading 3, Normal body
-- **Font:** Times New Roman throughout, black color
-- **Images:** Embedded in paragraphs, center-aligned
+The input DOCX files are clean and formatted (produced by `convert_document_v4.py`):
+- **Text:** ALL paragraphs use `Normal` style — heading level is determined by **font size**, not style name
+- **Font:** Times New Roman throughout, bold throughout — do **not** use bold as a heading indicator
+- **Images:** Embedded inline in paragraphs, center-aligned
 - **Tables:** Simple grid borders, 12pt Times New Roman cell text
 - **No watermarks, no headers/footers, no hyperlinks** — all stripped upstream
 - **MCQ blocks are present** and must be formatted per the MCQ Rules section below
 
 ## Tool Chain
 
-**pandoc** is the sole conversion tool. No python-docx needed — the input is already clean.
+**Custom Python XML parser** (`convert.py`) reads `word/document.xml` directly from the DOCX ZIP.
+Pandoc is not used — it cannot reconstruct heading hierarchy because all paragraphs are `Normal` style.
 
-```bash
-# Install on CachyOS / Arch
-sudo pacman -S pandoc
-```
+### Font Size → Structure Mapping
 
-### Pandoc Style Mapping
+`convert.py` maps font size (`<w:sz>` half-points) to document structure:
 
-pandoc reads DOCX paragraph styles and maps them automatically:
-
-| DOCX style | LaTeX / LyX output |
-|------------|-------------------|
-| Heading 1 | `\section` |
-| Heading 2 | `\subsection` |
-| Heading 3 | `\subsubsection` |
-| Normal | body paragraph |
-| Tables | `tabular` environment (see Table Transcription Exception) |
-| Bold runs | `\textbf{}` |
-| Images | `\includegraphics{}` (extracted to `media/`) |
+| Font size (`w:sz`) | Point size | LaTeX output | LyX layout |
+|--------------------|------------|--------------|------------|
+| 32 | 16pt | `\section{}` | `Section` |
+| 28 | 14pt | `\subsection{}` | `Subsection` |
+| 24 | 12pt | body paragraph | `Enumerate` |
+| other | varies | body paragraph | `Enumerate` |
 
 ## Project Structure
 

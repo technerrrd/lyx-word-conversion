@@ -78,10 +78,17 @@ def segments_text(segments) -> str:
     return ''.join(s[0] for s in segments)
 
 # ---------------------------------------------------------------------------
-# Noise / TOC / chapter detection
+# Noise / TOC / chapter / heading-numbering detection
 # ---------------------------------------------------------------------------
 TOC_RE     = re.compile(r'^\d+\.\s+\S')
 CHAPTER_RE = re.compile(r'^Chapter\s+Notes?\s*:\s*(.+)', re.IGNORECASE)
+HEADING_NUM_RE = re.compile(
+    r'^(?:'
+    r'Q\d+\.?\s+'            # Q1 / Q1. / Q12
+    r'|\d+(?:\.\d+)*\.?\s+'  # 1. / 1.1 / 1.6.9
+    r'|\([a-zA-Z0-9]+\)\s+'  # (a) / (i) / (1)
+    r')'
+)
 
 def is_toc_line(text: str) -> bool:
     return bool(TOC_RE.match(text.strip()))
@@ -90,6 +97,10 @@ def chapter_name(text: str):
     """Return chapter name if text matches 'Chapter Notes: <name>', else None."""
     m = CHAPTER_RE.match(text.strip())
     return m.group(1).strip() if m else None
+
+def strip_heading_numbering(text: str) -> str:
+    """Strip leading numeric/alpha prefixes like '1.', '1.1', 'Q1', '(a)'."""
+    return HEADING_NUM_RE.sub('', text).strip()
 
 # ---------------------------------------------------------------------------
 # LaTeX helpers
@@ -226,11 +237,14 @@ def parse_docx(docx_path: Path):
         # Classify — chapter pattern wins over font-size level
         ch = chapter_name(text)
         if ch:
-            elements.append({'type': 'heading', 'level': 'chapter', 'text': ch})
+            elements.append({'type': 'heading', 'level': 'chapter',
+                              'text': strip_heading_numbering(ch)})
         elif level == 'section':
-            elements.append({'type': 'heading', 'level': 'section', 'text': text})
+            elements.append({'type': 'heading', 'level': 'section',
+                              'text': strip_heading_numbering(text)})
         elif level == 'subsection':
-            elements.append({'type': 'heading', 'level': 'subsection', 'text': text})
+            elements.append({'type': 'heading', 'level': 'subsection',
+                              'text': strip_heading_numbering(text)})
         else:
             # MCQ question detection
             if text.startswith('Try yourself:') or text.startswith('Try yourself :'):

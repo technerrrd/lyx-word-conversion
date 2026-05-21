@@ -1,4 +1,4 @@
-# CLAUDE.md <!-- version: v2.4 -->
+# CLAUDE.md <!-- version: v2.5 -->
 
 ## Maintenance Rule
 
@@ -95,6 +95,8 @@ python convert.py Chapter10.docx Chapter11.docx
 ---
 
 ## Numbering Rules
+
+**Strip all original numbering prefixes** from heading text (chapter/section/subsection) and body text. Patterns stripped: `1.`, `1.1`, `1.6.9`, `Q1`, `Q1.`, `(a)`, `(i)`, `(1)`. LyX and LaTeX provide their own auto-numbering — the source prefixes would create duplicates like "1.6.9  5. Dietary Fibres".
 
 ### Notes documents (default)
 

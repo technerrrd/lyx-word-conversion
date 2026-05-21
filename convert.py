@@ -45,6 +45,39 @@ def pick_scale(cx_emu: int) -> float:
     return min(SCALE_OPTIONS, key=lambda s: abs(s - ratio))
 
 # ---------------------------------------------------------------------------
+# Bold detection
+# ---------------------------------------------------------------------------
+def is_run_bold(run) -> bool:
+    """True only if <w:b> present in rPr and w:val is not 0/false."""
+    b = run.find(f'{{{W}}}rPr/{{{W}}}b')
+    if b is None:
+        return False
+    val = b.get(f'{{{W}}}val', '1')
+    return val not in ('0', 'false')
+
+def para_segments(para) -> list:
+    """
+    Return list of (text, is_bold) tuples from a paragraph's runs.
+    Consecutive runs with the same bold value are merged into one segment.
+    """
+    segs = []  # [[text, bold], ...]
+    for run in para.findall(f'.//{{{W}}}r'):
+        run_texts = [t.text for t in run.findall(f'{{{W}}}t') if t.text]
+        if not run_texts:
+            continue
+        run_text = ''.join(run_texts)
+        bold = is_run_bold(run)
+        if segs and segs[-1][1] == bold:
+            segs[-1][0] += run_text
+        else:
+            segs.append([run_text, bold])
+    return [(s[0], s[1]) for s in segs]
+
+def segments_text(segments) -> str:
+    """Extract flat text from a segments list."""
+    return ''.join(s[0] for s in segments)
+
+# ---------------------------------------------------------------------------
 # Noise / TOC detection
 # ---------------------------------------------------------------------------
 TOC_RE = re.compile(r'^\d+\.\s+\S')   # "1. Introduction", "2. What Do We Eat?"
@@ -72,7 +105,6 @@ def tex_escape(text: str) -> str:
         ('Rs.', r'\rupee~'),
         ('INR', r'\rupee~'),
     ]
-    # Do backslash first, then rest
     result = text
     for old, new in replacements:
         if old == '\\':
@@ -81,6 +113,14 @@ def tex_escape(text: str) -> str:
     for old, new in replacements[1:]:
         result = result.replace(old, new)
     return result
+
+def render_tex_segments(segments) -> str:
+    """Render (text, bold) segments to LaTeX, applying \\textbf{} where bold."""
+    parts = []
+    for text, bold in segments:
+        escaped = tex_escape(text)
+        parts.append(f'\\textbf{{{escaped}}}' if bold else escaped)
+    return ''.join(parts)
 
 # ---------------------------------------------------------------------------
 # Parse DOCX
@@ -91,7 +131,8 @@ def parse_docx(docx_path: Path):
     Each element is a dict with keys:
       type: 'heading' | 'body' | 'image' | 'mcq_question'
       level: 'section' | 'subsection'  (headings only)
-      text: str
+      text: str  (flat text, used for MCQ detection and join conditions)
+      segments: list of (text, is_bold)  (body elements only)
       filename: str   (images only)
       scale: float    (images only)
     """
@@ -114,7 +155,7 @@ def parse_docx(docx_path: Path):
     root = ET.fromstring(xml)
     body = root.find(f'{{{W}}}body')
 
-    raw = []   # list of (sz, text, image_fname, cx_emu)
+    raw = []   # list of (sz, text, segments, img_fname, cx_emu)
 
     for para in body.findall(f'{{{W}}}p'):
         # --- font size ---
@@ -124,9 +165,9 @@ def parse_docx(docx_path: Path):
         except (TypeError, ValueError):
             sz = 24
 
-        # --- text ---
-        texts = [t.text for t in para.findall(f'.//{{{W}}}t') if t.text]
-        text = ' '.join(texts).strip()
+        # --- run-level segments (text + bold) ---
+        segs = para_segments(para)
+        text = segments_text(segs).strip()
 
         # --- inline image ---
         blip = para.find(f'.//{{{A}}}blip')
@@ -142,17 +183,14 @@ def parse_docx(docx_path: Path):
                 except (TypeError, ValueError):
                     cx_emu = 0
 
-        raw.append((sz, text, img_fname, cx_emu))
+        raw.append((sz, text, segs, img_fname, cx_emu))
 
     # --- Skip TOC block ---
-    # Find the first sz=32 paragraph (title), skip TOC lines after it,
-    # then resume from the second sz=32 paragraph (first real section).
     in_toc = False
-    past_toc = False
     elements = []
     seen_first_heading = False
 
-    for sz, text, img_fname, cx_emu in raw:
+    for sz, text, segs, img_fname, cx_emu in raw:
         # Image always included
         if img_fname:
             scale = pick_scale(cx_emu)
@@ -174,7 +212,7 @@ def parse_docx(docx_path: Path):
         # In TOC zone: skip numbered TOC entries
         if in_toc:
             if is_toc_line(text):
-                continue  # skip TOC line
+                continue
             else:
                 in_toc = False  # TOC ended
 
@@ -187,9 +225,10 @@ def parse_docx(docx_path: Path):
             # MCQ question detection
             if text.startswith('Try yourself:') or text.startswith('Try yourself :'):
                 question = re.sub(r'^Try yourself\s*:\s*', '', text).strip()
-                elements.append({'type': 'mcq_question', 'text': question})
+                elements.append({'type': 'mcq_question', 'text': question,
+                                  'segments': segs})
             else:
-                elements.append({'type': 'body', 'text': text})
+                elements.append({'type': 'body', 'text': text, 'segments': segs})
 
     return elements, rid_map, media_files
 
@@ -216,16 +255,18 @@ def reconstruct_paragraphs(elements):
         text = el['text']
         if buf is None:
             buf = dict(el)
+            buf['segments'] = list(el['segments'])
         else:
-            prev = buf['text']
+            prev_text = buf['text']
             # Join if previous line doesn't end a sentence and current looks like continuation
-            # (starts lowercase, or starts with '(' indicating a mid-list parenthetical)
-            if (not prev.endswith(('.', ':', '?', '!'))
+            if (not prev_text.endswith(('.', ':', '?', '!'))
                     and (text and (text[0].islower() or text[0] == '('))):
-                buf['text'] = prev + ' ' + text
+                buf['text'] = prev_text + ' ' + text
+                buf['segments'] = buf['segments'] + [(' ', False)] + list(el['segments'])
             else:
                 flush()
                 buf = dict(el)
+                buf['segments'] = list(el['segments'])
 
     flush()
     return out
@@ -257,8 +298,9 @@ def group_mcq_blocks(elements):
                 i = j
                 continue
             else:
-                # Not enough options — just treat as body
-                out.append({'type': 'body', 'text': el['text']})
+                # Not enough options — treat as body with no bold
+                out.append({'type': 'body', 'text': el['text'],
+                             'segments': el.get('segments', [(el['text'], False)])})
         else:
             out.append(el)
         i += 1
@@ -285,7 +327,6 @@ TEX_PREAMBLE = r"""\documentclass[12pt,a4paper]{article}
 def write_tex(elements, out_path: Path, media_dir: Path):
     lines = [TEX_PREAMBLE]
     in_enum = False
-    current_level = None  # 'section' or 'subsection'
 
     def close_enum():
         nonlocal in_enum
@@ -310,12 +351,11 @@ def write_tex(elements, out_path: Path, media_dir: Path):
                 lines.append(f'\\section{{{txt}}}\n')
             else:
                 lines.append(f'\\subsection{{{txt}}}\n')
-            current_level = lvl
 
         elif t == 'body':
-            open_enum()
-            txt = tex_escape(el['text'])
-            lines.append(f'\\item \\textbf{{{txt}}}\n')
+            close_enum()
+            rendered = render_tex_segments(el['segments'])
+            lines.append(f'\\par {rendered}\n\n')
 
         elif t == 'mcq':
             open_enum()
@@ -439,6 +479,24 @@ def lyx_escape(text: str) -> str:
     """Escape backslashes for LyX plain layout."""
     return text.replace('\\', '\\backslash\n')
 
+def render_lyx_segments(segments) -> str:
+    """
+    Render (text, bold) segments as LyX inline markup.
+    Uses \\series bold / \\series default switches only where needed.
+    """
+    parts = []
+    prev_bold = False
+    for text, bold in segments:
+        if bold and not prev_bold:
+            parts.append('\\series bold\n')
+        elif not bold and prev_bold:
+            parts.append('\\series default\n')
+        parts.append(lyx_escape(text))
+        prev_bold = bold
+    if prev_bold:
+        parts.append('\n\\series default\n')
+    return ''.join(parts)
+
 def write_lyx(elements, out_path: Path, media_dir: Path):
     lines = [LYX_HEADER]
     in_enum = False
@@ -468,24 +526,20 @@ def write_lyx(elements, out_path: Path, media_dir: Path):
             lines.append('\\end_layout\n\n')
 
         elif t == 'body':
-            in_enum = True
-            lines.append('\\begin_layout Enumerate\n')
-            lines.append('\\series bold\n')
-            lines.append(f'{el["text"]}\n')
-            lines.append('\\series default\n')
-            lines.append('\\end_layout\n\n')
+            close_enum()
+            lines.append('\\begin_layout Standard\n')
+            lines.append(render_lyx_segments(el['segments']))
+            lines.append('\n\\end_layout\n\n')
 
         elif t == 'mcq':
             in_enum = True
             q = el['text']
             opts = el['options']
             lines.append('\\begin_layout Enumerate\n')
-            # Question bold + spacing via ERT
             q_ert = (
                 f'\\backslash\ntextbf{{{q}}}\\backslash\n\\backslash\n[0.13cm]\n'
             )
             lines.append(ert(q_ert))
-            # 2x2 tabular via ERT
             tab = (
                 '\\backslash\nbegin{tabular}{@{}p{0.45\\backslash\ntextwidth} '
                 'p{0.45\\backslash\ntextwidth}@{}}\n'

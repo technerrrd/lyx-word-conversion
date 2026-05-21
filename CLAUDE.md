@@ -1,4 +1,4 @@
-# CLAUDE.md <!-- version: v2.2 -->
+# CLAUDE.md <!-- version: v2.3 -->
 
 ## Maintenance Rule
 
@@ -39,7 +39,7 @@ Input DOCX files come from the `pdf-conversion` project (`/home/anirudh/pdf-conv
 
 The input DOCX files are clean and formatted (produced by `convert_document_v4.py`):
 - **Text:** ALL paragraphs use `Normal` style — heading level is determined by **font size**, not style name
-- **Font:** Times New Roman throughout, bold throughout — do **not** use bold as a heading indicator
+- **Font:** Times New Roman throughout — bold is **run-level**, not document-wide. `<w:b val="0"/>` = explicitly not bold. Many paragraphs have mixed bold/plain runs (e.g. bold label + plain description). Do **not** use bold as a heading indicator
 - **Images:** Embedded inline in paragraphs, center-aligned
 - **Tables:** Simple grid borders, 12pt Times New Roman cell text
 - **No watermarks, no headers/footers, no hyperlinks** — all stripped upstream
@@ -58,8 +58,8 @@ Pandoc is not used — it cannot reconstruct heading hierarchy because all parag
 |--------------------|------------|--------------|------------|
 | 32 | 16pt | `\section{}` | `Section` |
 | 28 | 14pt | `\subsection{}` | `Subsection` |
-| 24 | 12pt | body paragraph | `Enumerate` |
-| other | varies | body paragraph | `Enumerate` |
+| 24 | 12pt | body paragraph (`\par`) | `Standard` |
+| other | varies | body paragraph (`\par`) | `Standard` |
 
 ## Project Structure
 
@@ -91,47 +91,41 @@ python convert.py Chapter10.docx Chapter11.docx
 
 ## Numbering Rules
 
-- **Strip all original numbering** from the source text — remove prefixes like `Q1`, `2.`, `1.1`, `(a)`, etc. that appear at the start of paragraphs. The enumerate environment provides the numbering.
-- **Under every subsection**, open a fresh enumerate block immediately after the heading.
-- **Before the next subsection or section**, close the enumerate block.
-- Each item must be wrapped appropriately for the format.
+### Notes documents (default)
 
-**`.tex` example:**
+All sz=24 body paragraphs are output as **Standard paragraphs** — no enumerate, no numbering.
+Bold formatting from the source is preserved run-by-run (inline `\textbf{}` / `\series bold`).
+
+**`.tex` body paragraph:**
 ```latex
-\subsection{Forces}
-\begin{enumerate}
-  \item A body at rest remains at rest...
-  \item Newton's second law states...
-\end{enumerate}
-\subsection{Motion}
-\begin{enumerate}
-  \item Velocity is defined as...
-\end{enumerate}
+\par Plain text here.
+\par \textbf{Bold label:} Plain description here.
+\par \textbf{Fully bold paragraph.}
 ```
 
-**`.lyx` example:** In LyX, consecutive `Enumerate` layout items automatically form a list. The list resets naturally when a new `Subsection` layout begins — no explicit open/close needed.
-
+**`.lyx` body paragraph:**
 ```
-\begin_layout Subsection
-Forces
+\begin_layout Standard
+Plain text here.
 \end_layout
 
-\begin_layout Enumerate
-A body at rest remains at rest...
-\end_layout
-
-\begin_layout Enumerate
-Newton's second law states...
-\end_layout
-
-\begin_layout Subsection
-Motion
-\end_layout
-
-\begin_layout Enumerate
-Velocity is defined as...
+\begin_layout Standard
+\series bold
+Bold label:
+\series default
+ Plain description here.
 \end_layout
 ```
+
+### Question bank documents
+
+Enumerate blocks apply only when the document is a question bank (MCQ, short/long Q&A).
+In that case:
+- **Strip all original numbering** — remove prefixes like `Q1`, `2.`, `1.1`, `(a)`, etc.
+- **Under every subsection**, open a fresh `enumerate` block immediately after the heading.
+- **Before the next subsection or section**, close the `enumerate` block.
+
+MCQ questions always use enumerate regardless of document type (see MCQ Rules).
 
 ---
 
